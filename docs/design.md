@@ -43,7 +43,7 @@ Enable a user to supply a PDF form URL and related documents so the system can e
 ## OpenAI Integration
 - During the upload phase, stream each file to both S3 and OpenAI’s Files API. Avoid writing temp files.
 - Persist OpenAI file IDs alongside each document entry (location TBD) so later prompts/jobs can reference them without re-uploading.
-- Structured extraction returns arbitrary JSON that we immediately store under the `info.json` path before calling the form-filling service.
+- Structured extraction uses the OpenAI Responses API with `openai/information_extraction/output_schema.json` (fields: `document_description`, `structured_information[]`) so results stay deterministic. The backend validates the schema, renders `prompt.jinja2`, and stores the returned JSON under the `info.json` path before calling the form-filling service.
 
 ## Form Filling Workflow
 1. **Download & Persist Form**: Fetch the provided form URL, normalize the filename into `form_slug`, and store it as `user_id/forms/<form_slug>/source.pdf`.
