@@ -37,7 +37,7 @@ Enable a user to supply a PDF form URL and related documents so the system can e
 - UI shows:
   - `View` button pointing at `s3Url`.
   - `Delete` button calling a backend delete endpoint that removes both `value.ext` + `info.json` and deletes the OpenAI file.
-- On page load the frontend reads a `manifest_cache_<user_id>` cookie to hydrate the file list instantly and only hits `GET /api/uploads?userId=<cookie>` when the cache is missing or stale, reducing redundant S3 lookups.
+- On page load the frontend reads a `manifest_cache_<user_id>` cookie to hydrate the file list instantly and only hits `GET /api/uploads?userId=<cookie>` when the cache is missing or stale, reducing redundant S3 lookups. A “Refresh” action lets users bypass the cache and pull the newest manifest from the backend on demand.
 - “Start Form Fill” button stays disabled until at least one upload succeeds and a form URL is present. Once triggered, disable uploads and show overall job status while polling for completion.
 
 ## OpenAI Integration
