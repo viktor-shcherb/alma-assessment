@@ -47,14 +47,14 @@ Enable a user to supply a PDF form URL and related documents so the system can e
 ## Form Filling Workflow
 1. **Download & Persist Form**: Fetch the provided form URL, normalize the filename into `form_slug`, and store it as `user_id/forms/<form_slug>/source.pdf`.
 2. **Context & Field Detection**:
-   - Attempt to read AcroForm metadata via `pdfrw`, `pypdf`, or `pdf-lib` to get field names, types, and rectangles.
-   - Persist a lightweight schema describing each field’s label, coordinates, and surrounding text snippet (context).
+   - Use PyMuPDF to read AcroForm metadata and extract field names, widget types, rectangles, and nearby text snippets.
+   - Persist a lightweight schema describing each widget’s label, coordinates, surrounding widgets, and any derived context, but only keep entries for text widgets in this MVP.
 3. **Value Selection**:
-   - Prompt OpenAI (Responses/Assistants) with the structured JSON + field context requesting `{ fieldName, value, confidence }`.
-   - Apply deterministic rules for normalization (dates, numbers) before filling.
+   - Prompt OpenAI (Responses/Assistants) with (a) the structured JSON extracted from supporting docs, (b) the current widget’s schema entry, and (c) a small window of surrounding widget metadata so it can decide to skip or populate the field; prompt responses stay in the form `{ fieldName, action: "skip" | "fill", value?, confidence }`.
+   - Apply deterministic rules for normalization (dates, numbers) before filling any widget that OpenAI marks as `fill`.
 4. **PDF Filling**:
-   - If AcroForm fields exist, fill them directly via `pdfrw`/`pdf-lib`.
-   - Otherwise, draw text at the stored bounding boxes and flatten the page to mimic handwriting/typed entries.
+   - Use PyMuPDF for all form editing, updating text widgets directly when AcroForm entries exist and drawing text overlays at recorded coordinates as needed.
+   - Ignore non-text widgets for now; they remain blank unless re-scoped in a future iteration.
    - Store the filled artifact at `user_id/forms/<form_slug>/filled.pdf`.
 5. **Status & Delivery**:
    - Update backend job status (`pending → filling → complete`).
