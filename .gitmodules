@@ -1,0 +1,8 @@
+[submodule "backend/pdf-form-filling-service"]
+	path = backend/pdf-form-filling-service
+	url = git@github.com:viktor-shcherb/pdf-form-filling-service.git
+	branch = main
+[submodule "frontend/pdf-form-filling-app"]
+	path = frontend/pdf-form-filling-app
+	url = git@github.com:viktor-shcherb/pdf-form-filling-app.git
+	branch = main
