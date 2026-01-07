@@ -10,7 +10,7 @@ Enable a user to supply a PDF form URL and related documents so the system can e
 2. App issues or reuses a `user_id` cookie that keys storage.
 3. User pastes/provides a link to the publicly accessible target PDF form (hosted on S3 for now).
 4. User selects supporting documents (PDFs or any format we plan to pass through to OpenAI).
-5. Frontend spawns one upload request per file (concurrent) that bundles the form link, file payload, and `user_id`, and renders backend-reported status for each file.
+5. Frontend spawns one upload request per file (concurrent) that includes the file payload + `user_id`, adds the form link metadata once the user has supplied it, and renders backend-reported status for each file.
 6. Backend streams each file to S3 under `user_id/<file_slug>/value.ext` and simultaneously forwards the same bytes to OpenAI’s Files API so extraction can reference them immediately; it returns per-file status plus the S3 URL for UI “View”/“Delete” controls.
 7. Backend invokes OpenAI to extract structured JSON and writes it to `user_id/<file_slug>/info.json` in S3.
 8. After uploads complete and a form link exists, the user presses “Start Form Fill.” Backend downloads the blank form, stores it under the user’s namespace, and runs the form-filling workflow described below.
@@ -29,14 +29,15 @@ Enable a user to supply a PDF form URL and related documents so the system can e
 - Extracted JSON: `user_id/<original_file_name>/info.json`.
 - Blank forms: `user_id/forms/<form_slug>/source.pdf` (slug derived from URL/file name).
 - Filled PDFs: `user_id/forms/<form_slug>/filled.pdf` (public link returned to frontend).
-- Manifest: `user_id/manifest.json` manifest per user that lists uploaded files, OpenAI file IDs, and form versions.
+- Manifest: `user_id/manifest.json` manifest per user that lists uploaded files plus placeholder form metadata. Layout is `{ userId, updatedAt, files: [ { slug, objectKey, infoKey, fileName, s3Url, contentType, size, openaiFileId, uploadedAt, status } ], forms: {} }` so delete + pipeline steps (and the UI) can resolve assets deterministically.
 
 ## Frontend Upload UX (MVP)
 - Fire one HTTP request per file to allow concurrent uploads; rely on `Promise.allSettled` to render progress bars and errors individually.
-- Payload includes `userId`, and the file. Backend responds with `{ status, slug, s3Url }`.
+- Payload includes `userId` and the file, plus the form link when the user has already entered it. Backend responds with `{ status, slug, s3Url, openaiFileId, size }`.
 - UI shows:
   - `View` button pointing at `s3Url`.
   - `Delete` button calling a backend delete endpoint that removes both `value.ext` + `info.json` and deletes the OpenAI file.
+- On page load the frontend reads a `manifest_cache_<user_id>` cookie to hydrate the file list instantly and only hits `GET /api/uploads?userId=<cookie>` when the cache is missing or stale, reducing redundant S3 lookups.
 - “Start Form Fill” button stays disabled until at least one upload succeeds and a form URL is present. Once triggered, disable uploads and show overall job status while polling for completion.
 
 ## OpenAI Integration
@@ -76,7 +77,7 @@ Enable a user to supply a PDF form URL and related documents so the system can e
 - Do we need virus scanning before storing files in S3?
 - Which OpenAI model + prompt strategy produces reliable JSON for our forms and field mappings?
 - Should the backend process uploads/filling synchronously or via background jobs?
-- Where should we persist OpenAI file IDs + field maps (database vs. S3 manifest)?
+- OpenAI file IDs now live in the manifest; where the eventual field maps belong (database vs. S3 manifest) is still undecided.
 - Are per-file delete operations allowed after form filling begins?
 
 Add answers inline as they are discovered.

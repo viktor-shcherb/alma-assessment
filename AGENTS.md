@@ -13,7 +13,7 @@ This MVP intentionally trims scope. When contributing, keep the following constr
 - Generate a `user_id` cookie for every visitor/session and include it with uploads so backend + storage can key on it deterministically.
 - Storage is public S3 for this MVP. Each document and its derived JSON must live under `user_id/<original_file>/value.ext` and `user_id/<original_file>/info.json`.
 - When pushing files to S3, pipe the exact payload to OpenAI’s Files API so extraction can reference the file immediately (Uploads API is out of scope for now).
-- Frontend must upload each file via its own request (allowing concurrent transfers), include the form link + `user_id`, reflect backend completion status per file, and expose “Delete” + “View on S3” affordances for each asset.
+- Frontend must upload each file via its own request (allowing concurrent transfers), always include the `user_id`, attach the form link metadata once available, reflect backend completion status per file, and expose “Delete” + “View on S3” affordances for each asset.
 - Once uploads + form URL exist, expose a “Start Form Fill” action that triggers the backend pipeline and surfaces the resulting filled-PDF S3 link when ready.
 - Deployment scripts live at the root; submodules expose only default arguments (documented locally).
 

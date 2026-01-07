@@ -8,7 +8,7 @@ This repository coordinates the MVP form-filling experience.
 - Missing pieces: concrete API contract, hosting details, and testing strategy. These will be filled in as they are defined.
 - Data handling (current): every visitor gets a generated `user_id` stored in a cookie; uploads land in public S3 under `user_id/<original_file>/value.ext`, and the structured JSON produced for that file is written to `user_id/<original_file>/info.json`. During the S3 upload stage, the same bytes are forwarded to OpenAI’s Files API so the extraction step can reference them without re-uploading.
 - UX expectations:
-  - Frontend issues one concurrent upload request per file, bundling form link + `user_id` metadata, and renders backend-provided status updates as each completes.
+- Frontend issues one concurrent upload request per file, bundling `user_id` metadata (and the form link once available), and renders backend-provided status updates as each completes.
   - Users can delete uploaded assets or follow S3 links to preview them directly from the UI.
   - After all uploads and the target form link are provided, users trigger the fill process, which downloads the PDF, stores it in S3, invokes the filling engine, and finally exposes a filled-PDF link from S3.
 
@@ -20,10 +20,19 @@ backend/   -> Submodule hosting the form-filling service (pdf-form-filling-servi
 
 Each submodule defines its own dependencies and deployment defaults. This root repo focuses on orchestration and shared documentation.
 
+## Environment Variables
+The repo ships with `.env` files containing safe defaults for local development. Update them as needed before running either service.
+
+| Service         | File                                    | Variables                                                                                                                                                                                                                                   |
+|-----------------|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Backend service | `backend/pdf-form-filling-service/.env` | `S3_BUCKET_NAME`, `S3_BUCKET_REGION`, `S3_BUCKET_URL` (public base URL), `OPENAI_API_KEY`, `OPENAI_FILE_PURPOSE`, optional `OPENAI_API_BASE`, `OPENAI_ORG_ID`. AWS credentials come from the standard SDK chain (env vars, profiles, etc.). |
+| Frontend app    | `frontend/pdf-form-filling-app/.env`    | `VITE_API_BASE_URL` – base URL for the backend HTTP API.                                                                                                                                                                                    |
+
 ## Getting Started
 1. `git submodule update --init --recursive`
-2. Follow setup instructions inside each submodule (`frontend/pdf-form-filling-app/README.md`, `backend/pdf-form-filling-service/README.md`).
-3. Placeholder: consolidated dev tooling (TBD once requirements stabilize).
+2. Adjust the `.env` files above if your local URLs/buckets differ.
+3. Follow setup instructions inside each submodule (`frontend/pdf-form-filling-app/README.md`, `backend/pdf-form-filling-service/README.md`).
+4. Placeholder: consolidated dev tooling (TBD once requirements stabilize).
 
 ## Deployment (Placeholder)
 - Root repo: will eventually provide a minimal compose/shell deployment wrapper.
