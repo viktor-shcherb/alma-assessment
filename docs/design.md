@@ -39,27 +39,30 @@ Enable a user to supply a PDF form URL and related documents so the system can e
   - `Delete` button calling a backend delete endpoint that removes both `value.ext` + `info.json` and deletes the OpenAI file.
 - On page load the frontend reads a `manifest_cache_<user_id>` cookie to hydrate the file list instantly and only hits `GET /api/uploads?userId=<cookie>` when the cache is missing or stale, reducing redundant S3 lookups. A “Refresh” action lets users bypass the cache and pull the newest manifest from the backend on demand.
 - “Start Form Fill” button stays disabled until at least one upload succeeds and a form URL is present. Once triggered, disable uploads and show overall job status while polling for completion.
+- While the job runs, show total text fields, a determinate progress bar, and a rolling list of the latest filled / skipped / error fields so users can see exactly where the pipeline is.
 
 ## OpenAI Integration
 - During the upload phase, stream each file to both S3 and OpenAI’s Files API. Avoid writing temp files.
 - Persist OpenAI file IDs alongside each document entry (location TBD) so later prompts/jobs can reference them without re-uploading.
-- Structured extraction uses the OpenAI Responses API with `openai/information_extraction/output_schema.json` (fields: `document_description`, `structured_information[]`) so results stay deterministic. The backend validates the schema, renders `prompt.jinja2`, and stores the returned JSON under the `info.json` path before calling the form-filling service.
+- Structured extraction uses the OpenAI Responses API with `openai/information_extraction/output_schema.json` (fields: `document_description`, `structured_information[]`) so results stay deterministic. The backend validates the schema, renders `prompt.jinja2`, and stores the returned JSON under the `info.json` path before calling the form-filling service. Non-PDF uploads (images, etc.) are converted to PDF in-memory solely for extraction; the original file remains untouched in S3/OpenAI Files.
+- Form filling prompts the Chat Completions API once per text widget using `openai/form_filling/`. The prompt receives the widget schema (name, label, coordinates, required flag), the combined document description, and a truncated list of uploaded facts. Responses must match the `form_field_decision` schema so the backend can deterministically apply `fill` vs `skip` actions.
 
 ## Form Filling Workflow
 1. **Download & Persist Form**: Fetch the provided form URL, normalize the filename into `form_slug`, and store it as `user_id/forms/<form_slug>/source.pdf`.
 2. **Context & Field Detection**:
-   - Use PyMuPDF to read AcroForm metadata and extract field names, widget types, rectangles, and nearby text snippets.
-   - Persist a lightweight schema describing each widget’s label, coordinates, surrounding widgets, and any derived context, but only keep entries for text widgets in this MVP.
+   - Use PyMuPDF to enumerate widgets, filter to text fields, and capture `name`, `page`, rectangle coordinates, inferred labels, and required / max-length metadata.
+   - Persist the schema as `user_id/forms/<form_slug>/schema.json` so retries do not need to re-parse the PDF.
 3. **Value Selection**:
-   - Prompt OpenAI (Responses/Assistants) with (a) the structured JSON extracted from supporting docs, (b) the current widget’s schema entry, and (c) a small window of surrounding widget metadata so it can decide to skip or populate the field; prompt responses stay in the form `{ fieldName, action: "skip" | "fill", value?, confidence }`.
-   - Apply deterministic rules for normalization (dates, numbers) before filling any widget that OpenAI marks as `fill`.
+   - Merge every upload’s `info.json` into a single fact list (normalized names + values + descriptions).
+   - Prompt OpenAI with the current widget schema + fact list + document summary. Responses must obey the structured schema `{ field_name, action: "fill" | "skip", value?, confidence, reason? }`.
+   - Limit concurrency with `FORM_FILL_MAX_CONCURRENCY` so multiple fields evaluate simultaneously without hitting rate limits. Each field advances through `pending → prompting → filled/skipped/error`.
 4. **PDF Filling**:
-   - Use PyMuPDF for all form editing, updating text widgets directly when AcroForm entries exist and drawing text overlays at recorded coordinates as needed.
-   - Ignore non-text widgets for now; they remain blank unless re-scoped in a future iteration.
-   - Store the filled artifact at `user_id/forms/<form_slug>/filled.pdf`.
+   - Apply values to text widgets via PyMuPDF (`widget.field_value`, `widget.update()`), falling back to the original PDF when a field is skipped.
+   - Store the filled artifact at `user_id/forms/<form_slug>/filled.pdf` and record a per-field log (value, status, reason).
+   - After the run, overwrite `schema.json` so each field captures its final `decision` (`fill` or `skip`) and the selected value for auditing.
 5. **Status & Delivery**:
-   - Update backend job status (`pending → filling → complete`).
-   - Return the filled PDF S3 link to the frontend so the UI can swap in a “Download filled form” button.
+   - Persist job metadata (counts + URLs) in the per-user manifest so the UI can show total fields, filled/skipped/error counts, and recent field outcomes.
+   - Frontend polls `GET /api/form-fill/{jobId}` to render a determinate progress bar (`completed / total`) plus the final download link once the backend marks the job `complete`.
 
 ## Interfaces (Draft)
 - **Frontend → Backend**: `POST /api/forms` with payload `{ formUrl: string, documents: FileList }`. Backend responds with job/result identifiers (exact shape TBD).
