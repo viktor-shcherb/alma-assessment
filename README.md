@@ -1,16 +1,10 @@
 # PDF Form Filling Automation
 
-This repository coordinates the MVP form-filling experience.
+This repository coordinates the MVP automated form-filling experience.
 
 ## Project Overview
 - Goal: let users upload supporting PDFs, capture a target form URL, and push extracted data to a filling service.
 - Scope: only the minimum happy path; error states, auth, and analytics are deferred.
-- Missing pieces: concrete API contract, hosting details, and testing strategy. These will be filled in as they are defined.
-- Data handling (current): every visitor gets a generated `user_id` stored in a cookie; uploads land in public S3 under `user_id/<original_file>/value.ext`, and the structured JSON produced for that file is written to `user_id/<original_file>/info.json`. During the S3 upload stage, the same bytes are forwarded to OpenAI’s Files API so the extraction step can reference them without re-uploading.
-- UX expectations:
-- Frontend issues one concurrent upload request per file, bundling `user_id` metadata (and the form link once available), and renders backend-provided status updates as each completes.
-  - Users can delete uploaded assets or follow S3 links to preview them directly from the UI.
-  - After all uploads and the target form link are provided, users trigger the fill process, which downloads the PDF, stores it in S3, invokes the filling engine, and finally exposes a filled-PDF link from S3.
 
 ## Repository Layout
 ```
@@ -23,25 +17,20 @@ Each submodule defines its own dependencies and deployment defaults. This root r
 ## Environment Variables
 The repo ships with `.env` files containing safe defaults for local development. Update them as needed before running either service.
 
-| Service         | File                                    | Variables                                                                                                                                                                                                                                   |
-|-----------------|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Backend service | `backend/pdf-form-filling-service/.env` | `S3_BUCKET_NAME`, `S3_BUCKET_REGION`, `S3_BUCKET_URL` (public base URL), `OPENAI_API_KEY`, `OPENAI_FILE_PURPOSE`, optional `OPENAI_API_BASE`, `OPENAI_ORG_ID`. AWS credentials come from the standard SDK chain (env vars, profiles, etc.). |
-| Frontend app    | `frontend/pdf-form-filling-app/.env`    | `VITE_API_BASE_URL` – base URL for the backend HTTP API.                                                                                                                                                                                    |
+| Service         | File                                    | Variables                                                                                                                                                               |
+|-----------------|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Backend service | `backend/pdf-form-filling-service/.env` | `S3_BUCKET_NAME`, `S3_BUCKET_REGION`, `S3_BUCKET_URL` (public base URL), `OPENAI_API_KEY`. AWS credentials come from the standard SDK chain (env vars, profiles, etc.). |
+| Frontend app    | `frontend/pdf-form-filling-app/.env`    | `VITE_API_BASE_URL` – base URL for the backend HTTP API.                                                                                                                |
 
 ## Getting Started
 1. `git submodule update --init --recursive`
 2. Adjust the `.env` files above if your local URLs/buckets differ.
 3. Follow setup instructions inside each submodule (`frontend/pdf-form-filling-app/README.md`, `backend/pdf-form-filling-service/README.md`).
-4. Placeholder: consolidated dev tooling (TBD once requirements stabilize).
 
-## Deployment (Placeholder)
-- Root repo: will eventually provide a minimal compose/shell deployment wrapper.
-- Frontend: expected to export a static build; hosting target not yet selected.
-- Backend: intended to run as a single container or process with public S3 access and OpenAI credentials for the upload/extraction flow.
+## (!) Divergence between implementation and the task requirements
+I noticed late in the development that the task required filling web forms, not PDFs. It does not change the overall approach, but PyMuPDF does need to be swapped out for a Puppeteer/Selenium-based solution.
 
-## Documentation Status
-- `AGENTS.md`: development guardrails for this MVP.
-- `docs/design.md`: evolving design overview (now includes OpenAI upload touchpoints via the Files API only, plus upload/delete/status UX and the PDF filling pipeline).
-- Open questions: storage bucket naming, security requirements, OpenAI model selection.
-
-> NOTE: Replace every `TBD` above when the corresponding decision is made.
+The general workflow stays the same:
+- User uploads documents to the app.
+- Structured information gets extracted from these documents.
+- This structured data is then used to fill in the form (PDF in this case).
